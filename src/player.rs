@@ -232,17 +232,6 @@ pub fn players_move(
     for (player_no, mut velocity, mut direction, mut sprite, mut indices) in &mut query {
         if player_no.0 == 1
             && keyboard_input.any_just_released([
-                KeyCode::KeyW,
-                KeyCode::KeyS,
-                KeyCode::KeyA,
-                KeyCode::KeyD,
-            ])
-        {
-            velocity.linvel = Vec2::ZERO;
-            continue;
-        }
-        if player_no.0 == 2
-            && keyboard_input.any_just_released([
                 KeyCode::ArrowUp,
                 KeyCode::ArrowDown,
                 KeyCode::ArrowLeft,
@@ -252,24 +241,35 @@ pub fn players_move(
             velocity.linvel = Vec2::ZERO;
             continue;
         }
+        if player_no.0 == 2
+            && keyboard_input.any_just_released([
+                KeyCode::KeyW,
+                KeyCode::KeyS,
+                KeyCode::KeyA,
+                KeyCode::KeyD,
+            ])
+        {
+            velocity.linvel = Vec2::ZERO;
+            continue;
+        }
         // 一次只能移动一个方向
-        if (player_no.0 == 1 && keyboard_input.pressed(KeyCode::KeyW))
-            || (player_no.0 == 2 && keyboard_input.pressed(KeyCode::ArrowUp))
+        if (player_no.0 == 1 && keyboard_input.pressed(KeyCode::ArrowUp))
+            || (player_no.0 == 2 && keyboard_input.pressed(KeyCode::KeyW))
         {
             velocity.linvel = Vec2::new(0.0, PLAYER_SPEED);
             *direction = common::Direction::Up;
-        } else if (player_no.0 == 1 && keyboard_input.pressed(KeyCode::KeyS))
-            || (player_no.0 == 2 && keyboard_input.pressed(KeyCode::ArrowDown))
+        } else if (player_no.0 == 1 && keyboard_input.pressed(KeyCode::ArrowDown))
+            || (player_no.0 == 2 && keyboard_input.pressed(KeyCode::KeyS))
         {
             velocity.linvel = Vec2::new(0.0, -PLAYER_SPEED);
             *direction = common::Direction::Down;
-        } else if (player_no.0 == 1 && keyboard_input.pressed(KeyCode::KeyA))
-            || (player_no.0 == 2 && keyboard_input.pressed(KeyCode::ArrowLeft))
+        } else if (player_no.0 == 1 && keyboard_input.pressed(KeyCode::ArrowLeft))
+            || (player_no.0 == 2 && keyboard_input.pressed(KeyCode::KeyA))
         {
             velocity.linvel = Vec2::new(-PLAYER_SPEED, 0.0);
             *direction = common::Direction::Left;
-        } else if (player_no.0 == 1 && keyboard_input.pressed(KeyCode::KeyD))
-            || (player_no.0 == 2 && keyboard_input.pressed(KeyCode::ArrowRight))
+        } else if (player_no.0 == 1 && keyboard_input.pressed(KeyCode::ArrowRight))
+            || (player_no.0 == 2 && keyboard_input.pressed(KeyCode::KeyD))
         {
             velocity.linvel = Vec2::new(PLAYER_SPEED, 0.0);
             *direction = common::Direction::Right;
