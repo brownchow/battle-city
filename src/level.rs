@@ -23,7 +23,7 @@ pub enum LevelItem {
     None,
     // 石墙
     StoneWall,
-    // 贴墙
+    // 铁墙
     IronWall,
     // 树木
     Tree,
@@ -45,8 +45,8 @@ pub struct EnemiesMarker;
 
 #[derive(Clone, Debug, Default, Bundle)]
 pub struct ColliderBundle {
-    pub collider: Collider,
-    pub rigid_body: RigidBody,
+    pub collider: Collider, // 碰撞体
+    pub rigid_body: RigidBody, // 刚体
 }
 
 #[derive(Clone, Debug, Default, Bundle)]
@@ -55,13 +55,18 @@ pub struct AnimationBundle {
     pub indices: AnimationIndices,
 }
 
+// 精灵表参数说明:
+// #[sprite_sheet("纹理路径", 图块宽度, 图块高度, 列数, 行数, 内边距, 间距, 图块索引)]
+// map.bmp 精灵表布局: 7列 x 1行, 共7个图块, 每个图块32x32像素
+// 图块索引: 0=石墙, 1=铁墙, 2=树, 3=水(帧1), 4=水(帧2), 5=家, 6=家(摧毁)
+
 #[derive(Bundle, LdtkEntity, Default)]
 pub struct StoneWallBundle {
     #[from_entity_instance]
     level_item: LevelItem,
     #[from_entity_instance]
     pub collider_bundle: ColliderBundle,
-    // #[sprite_sheet_bundle("path/to/asset.png", tile_width, tile_height, columns, rows, padding, offset, index)]
+    // 精灵表索引0: 石墙(可被子弹摧毁)
     #[sprite_sheet("textures/map.bmp", 32, 32, 7, 1, 0, 0, 0)]
     sprite_sheet: Sprite,
 }
@@ -71,6 +76,7 @@ pub struct IronWallBundle {
     level_item: LevelItem,
     #[from_entity_instance]
     pub collider_bundle: ColliderBundle,
+    // 精灵表索引1: 铁墙(不可被摧毁,除非使用高级武器)
     #[sprite_sheet("textures/map.bmp", 32, 32, 7, 1, 0, 0, 1)]
     sprite_sheet: Sprite,
 }
@@ -80,6 +86,7 @@ pub struct WaterBundle {
     level_item: LevelItem,
     #[from_entity_instance]
     pub collider_bundle: ColliderBundle,
+    // 精灵表索引3: 水(动画帧1, 与索引4交替播放形成水波动画)
     #[sprite_sheet("textures/map.bmp", 32, 32, 7, 1, 0, 0, 3)]
     sprite_sheet: Sprite,
     #[from_entity_instance]
@@ -91,6 +98,7 @@ pub struct HomeBundle {
     level_item: LevelItem,
     #[from_entity_instance]
     pub collider_bundle: ColliderBundle,
+    // 精灵表索引5: 基地(玩家需要保护的目标)
     #[sprite_sheet("textures/map.bmp", 32, 32, 7, 1, 0, 0, 5)]
     sprite_sheet: Sprite,
 }
@@ -116,6 +124,20 @@ impl From<&EntityInstance> for ColliderBundle {
     fn from(entity_instance: &EntityInstance) -> ColliderBundle {
         match entity_instance.identifier.as_ref() {
             "StoneWall" | "IronWall" | "Water" | "Home" => ColliderBundle {
+                // 碰撞体大小: TILE_SIZE/2=16 (32x32像素的半尺寸,用于Rapier2D物理引擎)
+                collider: Collider::cuboid(TILE_SIZE / 2., TILE_SIZE / 2.),
+                rigid_body: RigidBody::Fixed, // 固定刚体: 物体静止不动,仅参与碰撞检测
+            },
+            _ => ColliderBundle::default(),
+        }
+    }
+}
+
+impl From<&EntityInstance> for AnimationBundle {
+    fn from(entity_instance: &EntityInstance) -> ColliderBundle {
+        match entity_instance.identifier.as_ref() {
+            "Water" => ColliderBundle {
+                // 水域碰撞体大小与普通地图元素相同
                 collider: Collider::cuboid(TILE_SIZE / 2., TILE_SIZE / 2.),
                 rigid_body: RigidBody::Fixed,
             },
@@ -123,17 +145,21 @@ impl From<&EntityInstance> for ColliderBundle {
         }
     }
 }
+
 impl From<&EntityInstance> for AnimationBundle {
     fn from(entity_instance: &EntityInstance) -> AnimationBundle {
         match entity_instance.identifier.as_ref() {
             "Water" => AnimationBundle {
+                // 动画定时器: 0.2秒切换一次, TimerMode::Repeating表示循环播放
                 timer: AnimationTimer(Timer::from_seconds(0.2, TimerMode::Repeating)),
+                // 动画帧索引: 从索引3(第一帧)到索引4(第二帧), 循环切换形成水波效果
                 indices: AnimationIndices { first: 3, last: 4 },
             },
             _ => AnimationBundle::default(),
         }
     }
 }
+
 impl From<&EntityInstance> for LevelItem {
     fn from(entity_instance: &EntityInstance) -> LevelItem {
         match entity_instance.identifier.as_ref() {
@@ -147,6 +173,20 @@ impl From<&EntityInstance> for LevelItem {
     }
 }
 
+/// 加载并设置游戏关卡
+///
+/// 此函数负责加载 levels.ldtk 文件并创建 LDTK 世界，
+/// 是游戏地图生成的入口点。
+///
+/// # 参数
+/// - `commands`: Bevy 命令系统，用于创建实体
+/// - `asset_server`: 资源服务器，用于加载 ldtk 文件
+/// - `q_ldtk_world`: 查询是否已存在 LDTK 世界，避免重复加载
+///
+/// # 功能
+/// 1. 检查是否已经加载了 LDTK 世界，避免重复加载
+/// 2. 加载 levels.ldtk 文件并创建 LDTK 世界实体
+/// 3. 设置地图的初始位置偏移
 pub fn setup_levels(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -172,18 +212,19 @@ pub fn spawn_ldtk_entity(
     for (_entity, transform, entity_instance) in entity_query.iter() {
         if entity_instance.identifier == *"Tree" {
             let map_texture_handle = asset_server.load("textures/map.bmp");
+            // 重新构建精灵表布局: 7列 x 1行, 图块大小32x32
             let map_texture_atlas =
                 TextureAtlasLayout::from_grid(UVec2::new(32, 32), 7, 1, None, None);
             let map_texture_atlas_handle = texture_atlases.add(map_texture_atlas);
 
             let mut translation = transform.translation + LEVEL_TRANSLATION_OFFSET;
-            translation.z = SPRITE_TREE_ORDER;
+            translation.z = SPRITE_TREE_ORDER; // 树木渲染层级(确保显示在其他元素之上)
             commands.spawn((
                 LevelItem::Tree,
                 Sprite {
                     image: map_texture_handle,
                     texture_atlas: Some(TextureAtlas {
-                        index: 2,
+                        index: 2, // 精灵表索引2: 树木
                         layout: map_texture_atlas_handle,
                     }),
                     ..default()
@@ -210,6 +251,8 @@ pub fn animate_water(
             if timer.0.just_finished() {
                 // 切换到下一个sprite
                 if let Some(atlas) = &mut sprite.texture_atlas {
+                    // indices.last=4, indices.first=3
+                    // 当到达最后一帧(4)时,重置回第一帧(3),形成循环动画
                     atlas.index = if atlas.index == indices.last {
                         indices.first
                     } else {
@@ -263,6 +306,7 @@ pub fn animate_home(
     for _ in home_dying_er.read() {
         for (level_item, mut sprite) in &mut q_level_items {
             if *level_item == LevelItem::Home {
+                // 基地被摧毁时,切换到精灵表索引6(基地摧毁状态图)
                 sprite.texture_atlas.as_mut().unwrap().index = 6;
                 app_state.set(AppState::GameOver);
             }
