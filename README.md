@@ -21,6 +21,12 @@
 ```
 cargo run
 ```
+
+> **WSL Ubuntu 22.04**：需要设置后端才能运行：
+> ```bash
+> export WGPU_BACKEND=vulkan
+> cargo run
+> ```
 2. WASM运行
 ```
 rustup target install wasm32-unknown-unknown
