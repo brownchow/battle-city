@@ -75,13 +75,6 @@ pub struct IronWallBundle {
     sprite_sheet: Sprite,
 }
 #[derive(Bundle, LdtkEntity, Default)]
-pub struct TreeBundle {
-    #[from_entity_instance]
-    level_item: LevelItem,
-    #[sprite_sheet("textures/map.bmp", 32, 32, 7, 1, 0, 0, 2)]
-    sprite_sheet: Sprite,
-}
-#[derive(Bundle, LdtkEntity, Default)]
 pub struct WaterBundle {
     #[from_entity_instance]
     level_item: LevelItem,
